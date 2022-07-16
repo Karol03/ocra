@@ -80,7 +80,7 @@ Ocra::Ocra(std::string suite)
     Validate();
 }
 
-void Ocra::from(std::string suite)
+void Ocra::From(std::string suite)
 {
     m_suiteStr = std::move(suite);
     Validate();
@@ -120,7 +120,7 @@ void Ocra::ValidateVersion(std::string version)
 void Ocra::ValidateCryptoFunction(std::string function)
 {
     constexpr auto CRYPTO_FUNCTION_PARTS = 3u;
-    auto [data, size] = split<4>(std::move(function), '-');
+    auto [data, size] = split<3>(std::move(function), '-');
     auto algorithm = std::move(data[0]);
     auto hashFunc = std::move(data[1]);
     auto digits = std::move(data[2]);
@@ -165,19 +165,19 @@ std::pair<std::string, std::string> Ocra::ValidateDataInputChallenge(std::string
     challenge.erase(0, 1);
 
     if (challenge.size() != 3)
-        throw std::invalid_argument{"Unsupported data input format, for challenge descriptor 'QFxx' unrecognized value of 'F', pattern is: Q[A|N|H][04-64]"};
+        throw std::invalid_argument{"Unsupported data input format, for challenge data 'QFxx' wrong number of values, pattern is: Q[A|N|H][04-64]"};
 
     auto result = std::pair<std::string, std::string>{};
     auto coding = toupper(challenge.front());
     if (coding == 'A' || coding == 'N' || coding == 'H')
         result.first = coding;
     else
-        throw std::invalid_argument{"Unsupported data input format, for challenge descriptor 'QFxx' unrecognized value 'F', pattern is: Q[A|N|H][04-64]"};
+        throw std::invalid_argument{"Unsupported data input format, for challenge data 'QFxx' unrecognized value of 'F', pattern is: Q[A|N|H][04-64]"};
 
     challenge.erase(0, 1);
     auto size = atoi(challenge.c_str());
     if (size < 4 || 64 < size)
-        throw std::invalid_argument{"Unsupported data input format, for challenge descriptor 'QFxx' value 'xx' is out of bound, pattern is: Q[A|N|H][04-64]"};
+        throw std::invalid_argument{"Unsupported data input format, for challenge data 'QFxx' value 'xx' is out of bound, pattern is: Q[A|N|H][04-64]"};
 
     result.second = std::move(challenge);
     return result;
@@ -196,11 +196,11 @@ std::string Ocra::ValidateDataInputSession(std::string sessioninfo)
 {
     sessioninfo.erase(0, 1);
     if (sessioninfo.size() != 3)
-        throw std::invalid_argument{"Unsupported data input format, invalid session descriptor 'Snnn', pattern is: S[001-512]"};
+        throw std::invalid_argument{"Unsupported data input format, invalid session data 'Snnn', pattern is: S[001-512]"};
 
     auto size = atoi(sessioninfo.c_str());
     if (size < 1 || 512 < size)
-        throw std::invalid_argument{"Unsupported data input format, for session descriptor 'Snnn' value 'nnn' is out of bound, pattern is: S[001-512]"};
+        throw std::invalid_argument{"Unsupported data input format, for session data 'Snnn' value 'nnn' is out of bound, pattern is: S[001-512]"};
 
     return sessioninfo;
 }
@@ -209,89 +209,130 @@ std::pair<std::string, std::string> Ocra::ValidateDataInputTimestamp(std::string
 {
     timestamp.erase(0, 1);
     if (timestamp.size() < 2 || 3 < timestamp.size())
-        throw std::invalid_argument{"Unsupported data input format, invalid timestamp descriptor 'TG', pattern is: T[[1-59][S|M] | [0-48]H]"};
+        throw std::invalid_argument{"Unsupported data input format, invalid timestamp data 'TG', pattern is: T[[1-59][S|M] | [0-48]H]"};
 
     auto result = std::pair<std::string, std::string>{};
-    auto interval = toupper(timestamp.back());
-    if (interval == 'S' || interval == 'M' || interval == 'H')
-        result.second = interval;
+    auto step = toupper(timestamp.back());
+    if (step == 'S' || step == 'M' || step == 'H')
+        result.second = step;
     else
-        throw std::invalid_argument{"Unsupported data input format, invalid timestamp descriptor 'TG', time-step must be S, M or H, pattern is: T[[1-59][S|M] | [0-48]H]"};
+        throw std::invalid_argument{"Unsupported data input format, invalid timestamp data 'TG', time-step must be S, M or H, pattern is: T[[1-59][S|M] | [0-48]H]"};
 
     timestamp.pop_back();
     auto time = atoi(timestamp.c_str());
-    if ((interval == 'S' || interval == 'M') && (1 <= time && time <= 59))
+    if ((step == 'S' || step == 'M') && (1 <= time && time <= 59))
         result.first = std::move(timestamp);
-    else if ((interval == 'H') && (0 <= time && time <= 48))
+    else if ((step == 'H') && (0 <= time && time <= 48))
         result.first = std::move(timestamp);
     else
-        throw std::invalid_argument{"Unsupported data input format, for timestamp descriptor 'TG' value 'G' is out of bound, pattern is: T[[1-59][S|M] | [0-48]H]"};
+        throw std::invalid_argument{"Unsupported data input format, for timestamp data 'TG' value 'G' is out of bound, pattern is: T[[1-59][S|M] | [0-48]H]"};
     return result;
+}
+
+bool Ocra::InsertCounterInputData(std::string value)
+{
+    constexpr auto COUNTER_PARAM_CHAR = 'C';
+
+    if (value.empty())
+    {
+        throw std::invalid_argument{"Data input has missing first argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
+    }
+    else if (toupper(value[0]) == COUNTER_PARAM_CHAR)
+    {
+        m_suite.dataInput.push_back({COUNTER_PARAM_CHAR, std::string{}});
+        return true;
+    }
+    return false;
+}
+
+bool Ocra::InsertChallengeInputData(std::string value)
+{
+    constexpr auto CHALLENGE_PARAM_CHAR = 'Q';
+    constexpr auto CHALLENGE_LENGTH_CHAR = 'q';
+
+    if (value.empty())
+    {
+        throw std::invalid_argument{"Data input has empty challenge argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
+    }
+    else if (toupper(value[0]) == CHALLENGE_PARAM_CHAR)
+    {
+        auto [format, length] = ValidateDataInputChallenge(std::move(value));
+        m_suite.dataInput.push_back({CHALLENGE_PARAM_CHAR, std::move(format)});
+        m_suite.dataInput.push_back({CHALLENGE_LENGTH_CHAR, std::move(length)});
+        return true;
+    }
+    else
+    {
+        throw std::invalid_argument{"Data input has missing challenge data 'QFxx', data input pattern is: [C]-QFxx-[PH|Snnn|TG]"};
+    }
+}
+
+bool Ocra::InsertPasswordInputData(std::string value)
+{
+    constexpr auto PASSWORD_PARAM_CHAR = 'P';
+
+    if (value.empty())
+    {
+        return false;
+    }
+    else if (toupper(value[0]) == PASSWORD_PARAM_CHAR)
+    {
+        auto password = ValidateDataInputPassword(std::move(value));
+        m_suite.dataInput.push_back({PASSWORD_PARAM_CHAR, std::move(password)});
+        return true;
+    }
+    return false;
+}
+
+bool Ocra::InsertSessionInputData(std::string value)
+{
+    constexpr auto SESSION_PARAM_CHAR = 'S';
+
+    if (value.empty())
+    {
+        return false;
+    }
+    else if (toupper(value[0]) == SESSION_PARAM_CHAR)
+    {
+        auto sessioninfo = ValidateDataInputSession(std::move(value));
+        m_suite.dataInput.push_back({SESSION_PARAM_CHAR, std::move(sessioninfo)});
+        return true;
+    }
+    return false;
+}
+
+bool Ocra::InsertTimestampInputData(std::string value)
+{
+    constexpr auto TIMESTAMP_PARAM_CHAR = 'T';
+    constexpr auto TIMESTAMP_STEP_PARAM_CHAR = 't';
+
+    if (value.empty())
+    {
+        return false;
+    }
+    else if (toupper(value[0]) == TIMESTAMP_PARAM_CHAR)
+    {
+        auto [timestamp, step] = ValidateDataInputTimestamp(std::move(value));
+        m_suite.dataInput.push_back({TIMESTAMP_PARAM_CHAR, std::move(timestamp)});
+        m_suite.dataInput.push_back({TIMESTAMP_STEP_PARAM_CHAR, std::move(step)});
+        return true;
+    }
+    return false;
 }
 
 void Ocra::ValidateDataInput(std::string dataInput)
 {
-    if (dataInput.empty())
-        throw std::invalid_argument("Unsupported empty data input, data input pattern is: [C]-QFxx-[PH|Snnn|TG], see RFC6287");
-
-    constexpr auto NO_INPUT_DATA = 0u;
-    constexpr char PARAMS[] = {'C', 'Q', 'P', 'S', 'T'};
     auto input = 0u;
-
     auto [data, size] = split<5>(std::move(dataInput), '-');
-    if (size == NO_INPUT_DATA)
-        throw std::invalid_argument("Unsupported data input, data input pattern is: [C]-QFxx-[PH|Snnn|TG], see RFC6287");
 
-    if (data.empty())
-        throw std::invalid_argument{"Data input has missing argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
-    else if (toupper(data[input][0]) == PARAMS[0])
-    {
-        m_suite.dataInput.push_back({'C', std::string{}});
-        ++input;
-    }
-
-    if (data.empty())
-        throw std::invalid_argument{"Data input has missing argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
-    else if (input < size && toupper(data[input][0]) == PARAMS[1])
-    {
-        auto [coding, length] = ValidateDataInputChallenge(std::move(data[input]));
-        m_suite.dataInput.push_back({'Q', std::move(coding)});
-        m_suite.dataInput.push_back({'q', std::move(length)});
-        ++input;
-    }
-    else
-        throw std::invalid_argument{"Unsupported data input format, missing challenge descriptor 'QFxx', data input pattern is: [C]-QFxx-[PH|Snnn|TG], see RFC6287"};
-
-    if (data.empty())
-        throw std::invalid_argument{"Data input has missing argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
-    else if (input < size && toupper(data[input][0]) == PARAMS[2])
-    {
-        auto password = ValidateDataInputPassword(std::move(data[input]));
-        m_suite.dataInput.push_back({'P', std::move(password)});
-        ++input;
-    }
-
-    if (data.empty())
-        throw std::invalid_argument{"Data input has missing argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
-    else if (input < size && toupper(data[input][0]) == PARAMS[3])
-    {
-        auto sessioninfo = ValidateDataInputSession(std::move(data[input]));
-        m_suite.dataInput.push_back({'S', std::move(sessioninfo)});
-        ++input;
-    }
-
-    if (data.empty())
-        throw std::invalid_argument{"Data input has missing argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
-    else if (input < size && toupper(data[input][0]) == PARAMS[4])
-    {
-        auto [timestamp, interval] = ValidateDataInputTimestamp(std::move(data[input]));
-        m_suite.dataInput.push_back({'T', std::move(timestamp)});
-        m_suite.dataInput.push_back({'t', std::move(interval)});
-        ++input;
-    }
+    input += InsertCounterInputData(data[input]);
+    input += InsertChallengeInputData(std::move(data[input]));
+    input += InsertPasswordInputData(data[input]);
+    input += InsertSessionInputData(data[input]);
+    input += InsertTimestampInputData(data[input]);
 
     if (input != size)
-        throw std::invalid_argument{"Unsupported data input format, parameters left, data input pattern is: [C]-QFxx-[PH]-[Snnn]-[TG], see RFC6287"};
+        throw std::invalid_argument{"Unsupported data input format, unexpected parameters left, data input pattern is: [C]-QFxx-[PH]-[Snnn]-[TG]"};
 }
 
 }  // namespace ocra

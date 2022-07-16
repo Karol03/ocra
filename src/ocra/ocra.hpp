@@ -58,13 +58,19 @@ public:
     explicit Ocra() = default;
     explicit Ocra(std::string suite);
 
-    inline const OcraSuite& suite() const { return m_suite; }
+    inline const OcraSuite& Suite() const { return m_suite; }
 
-    void from(std::string suite);
+    void From(std::string suite);
     uint8_t* operator()(std::function<uint8_t*(const uint8_t*)> sha,
                         std::function<uint8_t*(const uint8_t*)> hotp) const;
 
 private:
+    bool InsertChallengeInputData(std::string value);
+    bool InsertCounterInputData(std::string value);
+    bool InsertPasswordInputData(std::string value);
+    bool InsertSessionInputData(std::string value);
+    bool InsertTimestampInputData(std::string value);
+
     std::pair<std::string, std::string> ValidateDataInputChallenge(std::string challenge);
     std::pair<std::string, std::string> ValidateDataInputTimestamp(std::string timestamp);
     std::string ValidateDataInputPassword(std::string password);
@@ -87,14 +93,16 @@ private:
     std::size_t split(std::array<std::string, N>& result, const char* data, char delimiter) const
     {
         if constexpr (M >= N)
-            return M;
+            return M + 1;
         else if (data[0] == '\0')
-            return M;
+            return M + 1;
         else
         {
             auto i = 0u;
             while (data[i] != delimiter && data[i] != '\0') ++i;
             result[M] = std::string(data, i);
+            if (data[i] == '\0')
+                return M + 1;
             i += (data[i] == delimiter);
             return split<M + 1>(result, data + i, delimiter);
         }

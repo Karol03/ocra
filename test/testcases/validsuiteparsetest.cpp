@@ -20,7 +20,7 @@ std::vector<std::string> supportedThirdDataInput{
 std::vector<std::string> supportedFourthDataInput{
     "", "-S001", "-S064", "-S512"};
 std::vector<std::string> supportedFifthDataInput{
-    "", "-T1S", "-T59M", "-T0H", "-T48H"};
+    "" "", "-T1S", "-T59M", "-T0H", "-T48H"};
 
 
 class OcraValidSuiteParseTest :
@@ -65,5 +65,5 @@ TEST_P(OcraValidSuiteParseTest, ShouldParseAndReturnTheSameSuite)
 
     auto ocraSuite = ocraSuiteStream.str();
     auto ocra = ocra::Ocra{ocraSuite};
-    ASSERT_EQ(ocra.suite().to_string(), ocraSuite);
+    ASSERT_EQ(ocra.Suite().to_string(), ocraSuite);
 }

@@ -24,3 +24,19 @@ TEST_P(OcraVersionParseTest, ShouldThrowExceptionOnNotOCRA1Version)
                          std::invalid_argument,
                          "Invalid OCRA version, supported version is 1");
 }
+
+TEST(OcraParseTest, ShouldThrowExceptionOnEmptySuite)
+{
+    auto ocraSuite = std::string{""};
+    ASSERT_THROW_MESSAGE(ocra::Ocra(std::move(ocraSuite)),
+                         std::invalid_argument,
+                         "Invalid OCRA suite, pattern is: <Version>:<CryptoFunction>:<DataInput>, see RFC6287");
+}
+
+TEST(OcraParseTest, ShouldThrowExceptionOnInvalidSuite)
+{
+    auto ocraSuite = std::string{":::"};
+    ASSERT_THROW_MESSAGE(ocra::Ocra(std::move(ocraSuite)),
+                         std::invalid_argument,
+                         "Invalid OCRA suite, pattern is: <Version>:<CryptoFunction>:<DataInput>, see RFC6287");
+}

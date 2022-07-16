@@ -6,7 +6,6 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
-#include <vector>
 
 
 namespace ocra
@@ -15,6 +14,15 @@ namespace ocra
 enum class OcraVersion
 {
     OCRA_1 = 1
+};
+
+
+enum class OcraSha
+{
+    None = 0,
+    SHA1 = 1,
+    SHA256 = 256,
+    SHA512 = 512
 };
 
 
@@ -42,13 +50,30 @@ enum class OcraDigits : uint32_t
 struct OcraSuite
 {
 public:
+    struct Challenge
+    {
+        char format = {};
+        uint8_t length = {};
+    };
+    
+    struct Timestamp
+    {
+        char step = {};
+        uint8_t time = {};
+    };
+
+public:
     std::string to_string() const;
 
 public:
     OcraVersion version;
     OcraHotp hotp;
     OcraDigits digits;
-    std::vector<std::pair<char, std::string>> dataInput;
+    bool isCounter{};
+    Challenge challenge{};
+    Timestamp timestamp{};
+    OcraSha passwordSha{OcraSha::None};
+    uint16_t sessionLength{};
 };
 
 
@@ -61,7 +86,9 @@ public:
     inline const OcraSuite& Suite() const { return m_suite; }
 
     void From(std::string suite);
-    uint8_t* operator()(std::function<uint8_t*(const uint8_t*)> sha,
+
+    uint8_t* operator()(
+                    std::function<uint8_t*(const uint8_t*)> sha,
                         std::function<uint8_t*(const uint8_t*)> hotp) const;
 
 private:
@@ -71,14 +98,13 @@ private:
     bool InsertSessionInputData(std::string value);
     bool InsertTimestampInputData(std::string value);
 
-    std::pair<std::string, std::string> ValidateDataInputChallenge(std::string challenge);
-    std::pair<std::string, std::string> ValidateDataInputTimestamp(std::string timestamp);
-    std::string ValidateDataInputPassword(std::string password);
-    std::string ValidateDataInputSession(std::string sessioninfo);
-
     void Validate();
     void ValidateCryptoFunction(std::string function);
     void ValidateDataInput(std::string dataInput);
+    void ValidateDataInputChallenge(std::string challenge);
+    void ValidateDataInputPassword(std::string password);
+    void ValidateDataInputSession(std::string sessioninfo);
+    void ValidateDataInputTimestamp(std::string timestamp);
     void ValidateVersion(std::string version);
 
     template <std::size_t N, typename T>

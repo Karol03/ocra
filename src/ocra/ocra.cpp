@@ -46,28 +46,41 @@ std::string OcraSuite::to_string() const
         default: break;
     }
 
-    auto it = dataInput.cbegin();
-    if (it != dataInput.cend())
+    if (isCounter)
+        result += "C-";
+
+    result += 'Q';
+    result += challenge.format;
+    result += ('0' + challenge.length / 10);
+    result += ('0' + challenge.length % 10);
+
+    if (passwordSha == OcraSha::SHA1)
+        result += "-PSHA1";
+    else if (passwordSha == OcraSha::SHA256)
+        result += "-PSHA256";
+    else if (passwordSha == OcraSha::SHA512)
+        result += "-PSHA512";
+
+    if (sessionLength > 0)
     {
-        if (isupper(it->first))
-            result += it->first + it->second;
-        else
-            result += it->second;
-        ++it;
+        result += "-S";
+
+        const auto digits = sessionLength % 10;
+        const auto tens = (sessionLength % 100) / 10;
+        const auto hundreds = sessionLength / 100;
+
+        result += ('0' + hundreds);
+        result += ('0' + tens);
+        result += ('0' + digits);
     }
 
-    while (it != dataInput.cend())
+    if (timestamp.step != 0)
     {
-        if (isupper(it->first))
-        {
-            result += "-";
-            result += it->first + it->second;
-        }
-        else
-        {
-            result += it->second;
-        }
-        ++it;
+        result += "-T";
+        if (timestamp.time > 9)
+            result += ('0' + timestamp.time / 10);
+        result += ('0' + timestamp.time % 10);
+        result += timestamp.step;
     }
 
     return result;
@@ -94,6 +107,9 @@ uint8_t* Ocra::operator()(std::function<uint8_t*(const uint8_t*)> sha,
 
 void Ocra::Validate()
 {
+    for (auto& c : m_suiteStr)
+        c = toupper(c);
+
     constexpr auto OCRA_SUITE_SIZE = 3u;
     auto [data, size] = split<3>(m_suiteStr, ':');
     if (size != OCRA_SUITE_SIZE)
@@ -160,73 +176,68 @@ void Ocra::ValidateCryptoFunction(std::string function)
         throw std::invalid_argument{"Invalid OCRA CryptoFunction, t cannot be empty supports digits t = {0, 4-10}, pattern is HOTP-SHAx-t"};
 }
 
-std::pair<std::string, std::string> Ocra::ValidateDataInputChallenge(std::string challenge)
+void Ocra::ValidateDataInputChallenge(std::string challenge)
 {
     challenge.erase(0, 1);
 
     if (challenge.size() != 3)
         throw std::invalid_argument{"Unsupported data input format, for challenge data 'QFxx' wrong number of values, pattern is: Q[A|N|H][04-64]"};
 
-    auto result = std::pair<std::string, std::string>{};
-    auto coding = toupper(challenge.front());
-    if (coding == 'A' || coding == 'N' || coding == 'H')
-        result.first = coding;
-    else
+    auto& format = m_suite.challenge.format;
+    auto& length = m_suite.challenge.length;
+    format = challenge.front();
+
+    if (format != 'A' && format != 'N' && format != 'H')
         throw std::invalid_argument{"Unsupported data input format, for challenge data 'QFxx' unrecognized value of 'F', pattern is: Q[A|N|H][04-64]"};
 
     challenge.erase(0, 1);
-    auto size = atoi(challenge.c_str());
-    if (size < 4 || 64 < size)
+    length = atoi(challenge.c_str());
+    if (length < 4 || 64 < length)
         throw std::invalid_argument{"Unsupported data input format, for challenge data 'QFxx' value 'xx' is out of bound, pattern is: Q[A|N|H][04-64]"};
-
-    result.second = std::move(challenge);
-    return result;
 }
 
-std::string Ocra::ValidateDataInputPassword(std::string password)
+void Ocra::ValidateDataInputPassword(std::string password)
 {
     password.erase(0, 1);
-    if (password == "SHA1" || password == "SHA256" || password == "SHA512")
-        return password;
+    if (password == "SHA1")
+        m_suite.passwordSha = OcraSha::SHA1;
+    else if (password == "SHA256")
+        m_suite.passwordSha = OcraSha::SHA256;
+    else if (password == "SHA512")
+        m_suite.passwordSha = OcraSha::SHA512;
     else
         throw std::invalid_argument{"Unsupported data input format, invalid password descriptor 'PH', hash function must be SHA1, SHA256 or SHA512, pattern is: PSHA[1|256|512]"};
 }
 
-std::string Ocra::ValidateDataInputSession(std::string sessioninfo)
+void Ocra::ValidateDataInputSession(std::string sessioninfo)
 {
     sessioninfo.erase(0, 1);
     if (sessioninfo.size() != 3)
         throw std::invalid_argument{"Unsupported data input format, invalid session data 'Snnn', pattern is: S[001-512]"};
 
-    auto size = atoi(sessioninfo.c_str());
-    if (size < 1 || 512 < size)
+    m_suite.sessionLength = atoi(sessioninfo.c_str());
+    if (m_suite.sessionLength < 1 || 512 < m_suite.sessionLength)
         throw std::invalid_argument{"Unsupported data input format, for session data 'Snnn' value 'nnn' is out of bound, pattern is: S[001-512]"};
-
-    return sessioninfo;
 }
 
-std::pair<std::string, std::string> Ocra::ValidateDataInputTimestamp(std::string timestamp)
+void Ocra::ValidateDataInputTimestamp(std::string timestamp)
 {
     timestamp.erase(0, 1);
     if (timestamp.size() < 2 || 3 < timestamp.size())
         throw std::invalid_argument{"Unsupported data input format, invalid timestamp data 'TG', pattern is: T[[1-59][S|M] | [0-48]H]"};
 
-    auto result = std::pair<std::string, std::string>{};
-    auto step = toupper(timestamp.back());
-    if (step == 'S' || step == 'M' || step == 'H')
-        result.second = step;
-    else
+    auto& step = m_suite.timestamp.step;
+    auto& time = m_suite.timestamp.time;
+
+    step = timestamp.back();
+    if (step != 'S' && step != 'M' && step != 'H')
         throw std::invalid_argument{"Unsupported data input format, invalid timestamp data 'TG', time-step must be S, M or H, pattern is: T[[1-59][S|M] | [0-48]H]"};
 
     timestamp.pop_back();
-    auto time = atoi(timestamp.c_str());
-    if ((step == 'S' || step == 'M') && (1 <= time && time <= 59))
-        result.first = std::move(timestamp);
-    else if ((step == 'H') && (0 <= time && time <= 48))
-        result.first = std::move(timestamp);
-    else
+    time = atoi(timestamp.c_str());
+
+    if (((step == 'S' || step == 'M') && (time < 1 || 59 < time)) || (time < 0 && 48 < time))
         throw std::invalid_argument{"Unsupported data input format, for timestamp data 'TG' value 'G' is out of bound, pattern is: T[[1-59][S|M] | [0-48]H]"};
-    return result;
 }
 
 bool Ocra::InsertCounterInputData(std::string value)
@@ -237,9 +248,9 @@ bool Ocra::InsertCounterInputData(std::string value)
     {
         throw std::invalid_argument{"Data input has missing first argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
     }
-    else if (toupper(value[0]) == COUNTER_PARAM_CHAR)
+    else if (value[0] == COUNTER_PARAM_CHAR)
     {
-        m_suite.dataInput.push_back({COUNTER_PARAM_CHAR, std::string{}});
+        m_suite.isCounter = true;
         return true;
     }
     return false;
@@ -248,17 +259,14 @@ bool Ocra::InsertCounterInputData(std::string value)
 bool Ocra::InsertChallengeInputData(std::string value)
 {
     constexpr auto CHALLENGE_PARAM_CHAR = 'Q';
-    constexpr auto CHALLENGE_LENGTH_CHAR = 'q';
 
     if (value.empty())
     {
         throw std::invalid_argument{"Data input has empty challenge argument, please specify argument following the pattern: [C]-QFxx-[PH|Snnn|TG]"};
     }
-    else if (toupper(value[0]) == CHALLENGE_PARAM_CHAR)
+    else if (value[0] == CHALLENGE_PARAM_CHAR)
     {
-        auto [format, length] = ValidateDataInputChallenge(std::move(value));
-        m_suite.dataInput.push_back({CHALLENGE_PARAM_CHAR, std::move(format)});
-        m_suite.dataInput.push_back({CHALLENGE_LENGTH_CHAR, std::move(length)});
+        ValidateDataInputChallenge(std::move(value));
         return true;
     }
     else
@@ -275,10 +283,9 @@ bool Ocra::InsertPasswordInputData(std::string value)
     {
         return false;
     }
-    else if (toupper(value[0]) == PASSWORD_PARAM_CHAR)
+    else if (value[0] == PASSWORD_PARAM_CHAR)
     {
-        auto password = ValidateDataInputPassword(std::move(value));
-        m_suite.dataInput.push_back({PASSWORD_PARAM_CHAR, std::move(password)});
+        ValidateDataInputPassword(std::move(value));
         return true;
     }
     return false;
@@ -292,10 +299,9 @@ bool Ocra::InsertSessionInputData(std::string value)
     {
         return false;
     }
-    else if (toupper(value[0]) == SESSION_PARAM_CHAR)
+    else if (value[0] == SESSION_PARAM_CHAR)
     {
-        auto sessioninfo = ValidateDataInputSession(std::move(value));
-        m_suite.dataInput.push_back({SESSION_PARAM_CHAR, std::move(sessioninfo)});
+        ValidateDataInputSession(std::move(value));
         return true;
     }
     return false;
@@ -304,17 +310,14 @@ bool Ocra::InsertSessionInputData(std::string value)
 bool Ocra::InsertTimestampInputData(std::string value)
 {
     constexpr auto TIMESTAMP_PARAM_CHAR = 'T';
-    constexpr auto TIMESTAMP_STEP_PARAM_CHAR = 't';
 
     if (value.empty())
     {
         return false;
     }
-    else if (toupper(value[0]) == TIMESTAMP_PARAM_CHAR)
+    else if (value[0] == TIMESTAMP_PARAM_CHAR)
     {
-        auto [timestamp, step] = ValidateDataInputTimestamp(std::move(value));
-        m_suite.dataInput.push_back({TIMESTAMP_PARAM_CHAR, std::move(timestamp)});
-        m_suite.dataInput.push_back({TIMESTAMP_STEP_PARAM_CHAR, std::move(step)});
+        ValidateDataInputTimestamp(std::move(value));
         return true;
     }
     return false;

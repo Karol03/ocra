@@ -9,18 +9,18 @@
 
 
 std::vector<std::string> supportedVersions{"OCRA-1"};
-std::vector<std::string> supportedCryptoFunction{"HOTP-SHA1", "HOTP-SHA256", "HOTP-SHA512"};
+std::vector<std::string> supportedCryptoFunction{"HOTP-SHA1", "hotp-sha256", "HOTP-SHA512"};
 std::vector<std::string> supportedTruncation{"0", "4", "6", "8", "10"};
-std::vector<std::string> supportedFirstDataInput{"C-", ""};
+std::vector<std::string> supportedFirstDataInput{"C-", "", "c-"};
 std::vector<std::string> supportedSecondDataInputPart1{"Q"};
-std::vector<std::string> supportedSecondDataInputPart2{"A", "N", "H"};
+std::vector<std::string> supportedSecondDataInputPart2{"A", "N", "H", "a"};
 std::vector<std::string> supportedSecondDataInputPart3{"04", "64"};
 std::vector<std::string> supportedThirdDataInput{
-    "", "-PSHA1", "-PSHA256", "-PSHA512"};
+    "", "-PSHA1", "-psha256", "-PshA512"};
 std::vector<std::string> supportedFourthDataInput{
-    "", "-S001", "-S064", "-S512"};
+    "", "-S001", "-s064", "-S512"};
 std::vector<std::string> supportedFifthDataInput{
-    "" "", "-T1S", "-T59M", "-T0H", "-T48H"};
+    "" "", "-T1S", "-t59m", "-T0h", "-T48H"};
 
 
 class OcraValidSuiteParseTest :
@@ -65,5 +65,9 @@ TEST_P(OcraValidSuiteParseTest, ShouldParseAndReturnTheSameSuite)
 
     auto ocraSuite = ocraSuiteStream.str();
     auto ocra = ocra::Ocra{ocraSuite};
+
+    for (auto& c : ocraSuite)
+        c = toupper(c);
+
     ASSERT_EQ(ocra.Suite().to_string(), ocraSuite);
 }

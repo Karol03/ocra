@@ -1,5 +1,10 @@
 #include "ocra.hpp"
 
+#include <sstream>
+#include <stdexcept>
+
+#include <boost/multiprecision/cpp_int.hpp>
+
 
 namespace ocra
 {
@@ -99,10 +104,201 @@ void Ocra::From(std::string suite)
     Validate();
 }
 
-uint8_t* Ocra::operator()(std::function<uint8_t*(const uint8_t*)> sha,
-                          std::function<uint8_t*(const uint8_t*)> hotp) const
+std::vector<uint8_t> Ocra::operator()(const uint8_t* key, const OcraParameters& parameters) const
 {
+    constexpr auto QUESTION_LENGTH = 128u;
+    const auto PASSWORD_LENGTH =
+        m_suite.passwordSha == OcraSha::None ? 0u :
+        (m_suite.passwordSha == OcraSha::SHA1 ? 20u :
+        (m_suite.passwordSha == OcraSha::SHA256 ? 32u : 64u));
+    constexpr auto EMPTY_BYTE = 1u;
+
+    std::vector<uint8_t> message(
+        m_suiteStr.length() +
+        (m_suite.isCounter ? 8 : 0) +
+        QUESTION_LENGTH +
+        PASSWORD_LENGTH +
+        m_suite.sessionLength +
+        (m_suite.timestamp.step ? 8 : 0) +
+        EMPTY_BYTE);
+
+    auto pos = ConcatenateOcraSuite(message.data());
+    pos = ConcatenateCounter(message.data(), pos, parameters);
+    pos = ConcatenateQuestion(message.data(), pos, parameters);
+    pos = ConcatenatePassword(message.data(), pos, parameters);
+    pos = ConcatenateSessionInfo(message.data(), pos, parameters);
+    ConcatenateTimestamp(message.data(), pos, parameters);
+
     return {};
+}
+
+std::size_t Ocra::ConcatenateOcraSuite(uint8_t* message) const
+{
+    constexpr auto EMPTY_BYTE = 1u;
+    memcpy(message, (uint8_t*)m_suiteStr.c_str(), m_suiteStr.length());
+    return m_suiteStr.length() + EMPTY_BYTE;
+}
+
+std::size_t Ocra::ConcatenateCounter(uint8_t* message,
+                                     std::size_t pos,
+                                     const OcraParameters& parameters) const
+{
+    if (!m_suite.isCounter)
+        return pos;
+        
+    if (!parameters.counter)
+        throw std::invalid_argument("OCRA operator() failed, suite contains a counter, but no counter value in parameters");
+
+    message[pos++] = (*parameters.counter >> 56) & 0xFF;
+    message[pos++] = (*parameters.counter >> 48) & 0xFF;
+    message[pos++] = (*parameters.counter >> 40) & 0xFF;
+    message[pos++] = (*parameters.counter >> 32) & 0xFF;
+    message[pos++] = (*parameters.counter >> 24) & 0xFF;
+    message[pos++] = (*parameters.counter >> 16) & 0xFF;
+    message[pos++] = (*parameters.counter >> 8) & 0xFF;
+    message[pos++] = *parameters.counter & 0xFF;
+
+    return pos + 8;
+}
+
+std::size_t Ocra::ConcatenateQuestion(uint8_t* message,
+                                      std::size_t pos,
+                                      const OcraParameters& parameters) const
+{
+    using namespace boost::multiprecision;
+
+    constexpr auto QUESTION_LENGTH = 128u;
+
+    if (!parameters.question)
+        throw std::invalid_argument("OCRA operator() failed, missing parameter 'question'");
+    else if (parameters.question->length() > m_suite.challenge.length)
+        throw std::invalid_argument("OCRA operator() failed, invalid 'question' length, is too long");
+
+    if (m_suite.challenge.format == 'A')
+    {
+        memcpy(&message[pos], (uint8_t*)parameters.question->c_str(), parameters.question->length());
+    }
+    else if (m_suite.challenge.format == 'H')
+    {
+        StringHexToUint8(message, parameters.question->c_str(), parameters.question->length());
+    }
+    else if (m_suite.challenge.format == 'N')
+    {
+        for (const auto& c : *parameters.question)
+        {
+            if (c < '0' || '9' < c)
+                throw std::invalid_argument("OCRA operator() failed, question is Numeric, and must contains only digits '0' to '9'");
+        }
+
+        auto ui256 = uint256_t{*parameters.question};
+        auto sstream = std::stringstream{};
+        sstream << std::hex << ui256;
+        auto question = sstream.str();
+        StringHexToUint8(message, question.c_str(), question.length());
+    }
+
+    return pos + QUESTION_LENGTH;
+}
+
+std::size_t Ocra::ConcatenatePassword(uint8_t* message,
+                                      std::size_t pos,
+                                      const OcraParameters& parameters) const
+{
+    if (m_suite.passwordSha == OcraSha::None)
+        return pos;
+
+    if (!parameters.shaHashFunction)
+        throw std::invalid_argument("OCRA operator() failed, no SHA functor for hash SHA password");
+
+    auto passwordHash = parameters.shaHashFunction((uint8_t*)(parameters.password->c_str()),
+                                                   m_suite.passwordSha);
+    if (passwordHash.empty())
+        throw std::invalid_argument("OCRA operator() failed, password hashing failed");
+
+    const auto PASSWORD_LENGTH =
+        m_suite.passwordSha == OcraSha::SHA1 ? 20u :
+        (m_suite.passwordSha == OcraSha::SHA256 ? 32u : 64u);
+    if (passwordHash.size() != PASSWORD_LENGTH)
+        throw std::invalid_argument("OCRA operator() failed, invalid hashed password length, password hashing may failed");
+
+    constexpr auto isAlignRight = true;
+    StringHexToUint8(message, passwordHash.c_str(), passwordHash.length(), isAlignRight);
+    return pos + PASSWORD_LENGTH;
+}
+
+std::size_t Ocra::ConcatenateSessionInfo(uint8_t* message,
+                                         std::size_t pos,
+                                         const OcraParameters& parameters) const
+{
+    if (m_suite.sessionLength == 0)
+        return pos;
+
+    if (!parameters.sessionInfo)
+        throw std::invalid_argument("OCRA operator() failed, no session info provided");
+
+    constexpr auto isAlignRight = true;
+    if (parameters.sessionInfo->length() >= m_suite.sessionLength)
+    {
+        StringHexToUint8(message, parameters.sessionInfo->c_str(),
+                         m_suite.sessionLength, isAlignRight);
+    }
+    else
+    {
+        const auto offset = m_suite.sessionLength - parameters.sessionInfo->length();
+        StringHexToUint8(message + offset, parameters.sessionInfo->c_str(),
+                         m_suite.sessionLength, isAlignRight);
+    }
+    return pos + m_suite.sessionLength;
+}
+
+std::size_t Ocra::ConcatenateTimestamp(uint8_t* message,
+                                       std::size_t pos,
+                                       const OcraParameters& parameters) const
+{
+    if (!m_suite.timestamp.step)
+        return pos;
+        
+    if (!parameters.timestamp)
+        throw std::invalid_argument("OCRA operator() failed, suite contains a timestamp, but no timestamp value in parameters");
+
+    message[pos++] = (*parameters.timestamp >> 56) & 0xFF;
+    message[pos++] = (*parameters.timestamp >> 48) & 0xFF;
+    message[pos++] = (*parameters.timestamp >> 40) & 0xFF;
+    message[pos++] = (*parameters.timestamp >> 32) & 0xFF;
+    message[pos++] = (*parameters.timestamp >> 24) & 0xFF;
+    message[pos++] = (*parameters.timestamp >> 16) & 0xFF;
+    message[pos++] = (*parameters.timestamp >> 8) & 0xFF;
+    message[pos++] = *parameters.timestamp & 0xFF;
+
+    return pos + 8;
+}
+
+void Ocra::StringHexToUint8(uint8_t* output,
+                            const char* input,
+                            std::size_t length,
+                            bool isAlignRight) const
+{
+    auto relativePos = std::size_t{(length % 2) && isAlignRight};
+
+    for (auto i = 0u; i < length; ++i)
+    {
+        const auto& c = input[i];
+
+        if (relativePos % 2 == 1)
+            output[relativePos] <<= 4;
+
+        if ('0' <= c  && c <= '9')
+            output[relativePos++] |= (c - '0');
+        else if ('a' <= c  && c <= 'f')
+            output[relativePos++] |= (10 + c - 'a');
+        else if ('A' <= c  && c <= 'F')
+            output[relativePos++] |= (10 + c - 'A');
+        else
+            throw std::invalid_argument("OCRA operator() failed, question is Hexadecimal, and must contains values [0-9][a-f][A-F]");
+    }
+
+    if (relativePos % 2 == 1)
+        output[relativePos] <<= 4;
 }
 
 void Ocra::Validate()

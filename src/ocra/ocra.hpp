@@ -3,9 +3,10 @@
 #include <array>
 #include <functional>
 #include <inttypes.h>
-#include <stdexcept>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 
 namespace ocra
@@ -77,6 +78,19 @@ public:
 };
 
 
+struct OcraParameters
+{
+public:
+    std::optional<uint64_t> counter;
+    std::optional<uint64_t> timestamp;
+    std::optional<std::string> question;
+    std::optional<std::string> password;
+    std::optional<std::string> sessionInfo;
+    std::function<std::string(const uint8_t*, OcraSha)> shaHashFunction;
+    std::function<std::string(const uint8_t*, OcraHotp)> hotpFunction;
+};
+
+
 class Ocra
 {
 public:
@@ -87,9 +101,7 @@ public:
 
     void From(std::string suite);
 
-    uint8_t* operator()(
-                    std::function<uint8_t*(const uint8_t*)> sha,
-                        std::function<uint8_t*(const uint8_t*)> hotp) const;
+    std::vector<uint8_t> operator()(const uint8_t* key, const OcraParameters& parameters) const;
 
 private:
     bool InsertChallengeInputData(std::string value);
@@ -97,6 +109,16 @@ private:
     bool InsertPasswordInputData(std::string value);
     bool InsertSessionInputData(std::string value);
     bool InsertTimestampInputData(std::string value);
+
+    std::size_t ConcatenateOcraSuite(uint8_t* message) const;
+    std::size_t ConcatenateCounter(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
+    std::size_t ConcatenateQuestion(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
+    std::size_t ConcatenatePassword(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
+    std::size_t ConcatenateSessionInfo(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
+    std::size_t ConcatenateTimestamp(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
+
+    void StringHexToUint8(uint8_t* output, const char* input,
+                          std::size_t length, bool isAlignRight = false) const;
 
     void Validate();
     void ValidateCryptoFunction(std::string function);

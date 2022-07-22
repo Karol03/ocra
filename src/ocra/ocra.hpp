@@ -1,17 +1,16 @@
 #pragma once
 
 #include <array>
-#include <functional>
 #include <inttypes.h>
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 
 namespace ocra
 {
-
 enum class OcraVersion
 {
     OCRA_1 = 1
@@ -27,7 +26,7 @@ enum class OcraSha
 };
 
 
-enum class OcraHotp
+enum class OcraHmac
 {
     HOTP_SHA1 = 1,
     HOTP_SHA256 = 256,
@@ -35,16 +34,16 @@ enum class OcraHotp
 };
 
 
-enum class OcraDigits : uint32_t
+enum class OcraDigits
 {
     _0 = 0,
-    _4 = 10000,
-    _5 = 100000,
-    _6 = 1000000,
-    _7 = 10000000,
-    _8 = 100000000,
-    _9 = 1000000000,
-    _10 = UINT32_MAX
+    _4 = 4,
+    _5 = 5,
+    _6 = 6,
+    _7 = 7,
+    _8 = 8,
+    _9 = 9,
+    _10 = 10
 };
 
 
@@ -68,7 +67,7 @@ public:
 
 public:
     OcraVersion version;
-    OcraHotp hotp;
+    OcraHmac hmac;
     OcraDigits digits;
     bool isCounter{};
     Challenge challenge{};
@@ -81,13 +80,12 @@ public:
 struct OcraParameters
 {
 public:
+    std::vector<uint8_t> key;
     std::optional<uint64_t> counter;
     std::optional<uint64_t> timestamp;
+    std::optional<std::variant<std::string, uint64_t>> password;
     std::optional<std::string> question;
-    std::optional<std::string> password;
     std::optional<std::string> sessionInfo;
-    std::function<std::string(const uint8_t*, OcraSha)> shaHashFunction;
-    std::function<std::string(const uint8_t*, OcraHotp)> hotpFunction;
 };
 
 
@@ -98,10 +96,11 @@ public:
     explicit Ocra(std::string suite);
 
     inline const OcraSuite& Suite() const { return m_suite; }
+    #ifdef OCRA_NO_THROW
+    int Status() const { return m_status; }
+    #endif
 
-    void From(std::string suite);
-
-    std::vector<uint8_t> operator()(const uint8_t* key, const OcraParameters& parameters) const;
+    std::string operator()(const OcraParameters& parameters);
 
 private:
     bool InsertChallengeInputData(std::string value);
@@ -110,15 +109,15 @@ private:
     bool InsertSessionInputData(std::string value);
     bool InsertTimestampInputData(std::string value);
 
-    std::size_t ConcatenateOcraSuite(uint8_t* message) const;
-    std::size_t ConcatenateCounter(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
-    std::size_t ConcatenateQuestion(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
-    std::size_t ConcatenatePassword(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
-    std::size_t ConcatenateSessionInfo(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
-    std::size_t ConcatenateTimestamp(uint8_t* message, std::size_t pos, const OcraParameters& parameters) const;
+    std::size_t ConcatenateOcraSuite(uint8_t* message);
+    std::size_t ConcatenateCounter(uint8_t* message, const OcraParameters& parameters);
+    std::size_t ConcatenateQuestion(uint8_t* message, const OcraParameters& parameters);
+    std::size_t ConcatenatePassword(uint8_t* message, const OcraParameters& parameters);
+    std::size_t ConcatenateSessionInfo(uint8_t* message, const OcraParameters& parameters);
+    std::size_t ConcatenateTimestamp(uint8_t* message, const OcraParameters& parameters);
 
     void StringHexToUint8(uint8_t* output, const char* input,
-                          std::size_t length, bool isAlignRight = false) const;
+                          std::size_t length, bool isAlignRight = false);
 
     void Validate();
     void ValidateCryptoFunction(std::string function);
@@ -159,6 +158,19 @@ private:
 private:
     OcraSuite m_suite;
     std::string m_suiteStr;
+    #ifdef OCRA_NO_THROW
+    int m_status = {};
+    #endif
 };
 
+
+namespace user_implemented
+{
+std::vector<uint8_t> ShaHashing(const std::vector<uint8_t>& data,
+                                OcraSha shaType);
+
+std::vector<uint8_t> HMACAlgorithm(const std::vector<uint8_t>& data,
+                                   const std::vector<uint8_t>& key,
+                                   OcraHmac hmacType);
+}  // namespace user_implemented
 }  // namespace ocra

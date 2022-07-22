@@ -20,23 +20,24 @@ INSTANTIATE_TEST_CASE_P(TestSuite, OcraVersionParseTest, ::testing::Values(
 TEST_P(OcraVersionParseTest, ShouldThrowExceptionOnNotOCRA1Version)
 {
     auto ocraSuite = GetParam();
+
     ASSERT_THROW_MESSAGE(ocra::Ocra(std::move(ocraSuite)),
-                         std::invalid_argument,
                          "Invalid OCRA version, supported version is 1");
+    ASSERT_RETURN_STATUS(ocra::Ocra(std::move(ocraSuite)), 0x02);
 }
 
 TEST(OcraParseTest, ShouldThrowExceptionOnEmptySuite)
 {
     auto ocraSuite = std::string{""};
     ASSERT_THROW_MESSAGE(ocra::Ocra(std::move(ocraSuite)),
-                         std::invalid_argument,
                          "Invalid OCRA suite, pattern is: <Version>:<CryptoFunction>:<DataInput>, see RFC6287");
+    ASSERT_RETURN_STATUS(ocra::Ocra(std::move(ocraSuite)), 0x01);
 }
 
 TEST(OcraParseTest, ShouldThrowExceptionOnInvalidSuite)
 {
     auto ocraSuite = std::string{":::"};
     ASSERT_THROW_MESSAGE(ocra::Ocra(std::move(ocraSuite)),
-                         std::invalid_argument,
                          "Invalid OCRA suite, pattern is: <Version>:<CryptoFunction>:<DataInput>, see RFC6287");
+    ASSERT_RETURN_STATUS(ocra::Ocra(std::move(ocraSuite)), 0x01);
 }

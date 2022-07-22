@@ -16,6 +16,7 @@ help() {
    echo "d              Run tests with GDB"
    echo "k              Run tests without the project rebuild"
    echo "g <options>... Run tests with the gtest options, specify the options after the flag"
+   echo "f <options>... Run tests with additional CMAKE flags, specify the options after the flag"
    echo "               example, './run.sh -g --gtest_filter=ExampleTest.*'"
    echo "i              Install prerequisites (GTest, GMock)"
    echo
@@ -46,17 +47,35 @@ testrun() {
     if [[ ! -d "./build" ]]; then
         mkdir build
     fi
-    cd build
-    cmake -DDEFINED_PROJECT_NAME="${PROJECT_NAME}-test" -DTEST_ONLY=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ ..
-    make
 
     IS_GDB=$1
-    shift 1
+    IS_ADD=$2
+    shift 2
 
-    if [[ $IS_GDB = true ]]; then
-        gdb ./${PROJECT_NAME}-test "$@"
+    cd build
+    if [[ $IS_ADD == 2 ]]; then
+        echo "[ BUILD ] Pass flags to CMake"
+        echo "Flags: $@"
+        cmake -DDEFINED_PROJECT_NAME="${PROJECT_NAME}-test" "$@" -DTEST_ONLY=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ ..
     else
-        ./${PROJECT_NAME}-test "$@"
+        cmake -DDEFINED_PROJECT_NAME="${PROJECT_NAME}-test" -DTEST_ONLY=ON -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++ ..
+    fi
+    make
+
+    if [[ $IS_ADD == 1 ]]; then
+        echo "[ BUILD ] Pass flags to GTest"
+        echo "Flags: $@"
+        if [[ $IS_GDB = true ]]; then
+            gdb ./${PROJECT_NAME}-test "$@"
+        else
+            ./${PROJECT_NAME}-test "$@"
+        fi
+    else
+        if [[ $IS_GDB = true ]]; then
+            gdb ./${PROJECT_NAME}-test
+        else
+            ./${PROJECT_NAME}-test
+        fi
     fi
 }
 
@@ -68,12 +87,23 @@ testrun_no_rebuild() {
     cd build
 
     IS_GDB=$1
-    shift 1
+    IS_ADD=$2
+    shift 2
 
-    if [[ $IS_GDB = true ]]; then
-        gdb ./${PROJECT_NAME}-test "$@"
+    if [[ $IS_ADD == 1 ]]; then
+        echo "[ BUILD ] Pass flags to GTest"
+        echo "$@"
+        if [[ $IS_GDB = true ]]; then
+            gdb ./${PROJECT_NAME}-test "$@"
+        else
+            ./${PROJECT_NAME}-test "$@"
+        fi
     else
-        ./${PROJECT_NAME}-test "$@"
+        if [[ $IS_GDB = true ]]; then
+            gdb ./${PROJECT_NAME}-test
+        else
+            ./${PROJECT_NAME}-test
+        fi
     fi
 }
 
@@ -84,11 +114,13 @@ TEST_RUN=false
 NO_REBUILD=false
 TEST_GDB=false
 INSTALLP=false
+ADDITIONAL_FLAGS=0
 GTEST_FLAGS=''
+CMAKE_FLAGS=''
 
 echo "[ BUILD ] Run script found at '$SCRIPT_DIR'"
 
-while getopts ":hctdkig:" option; do
+while getopts ":hctdkig:f:" option; do
    case $option in
       h) help
          exit;;
@@ -106,6 +138,13 @@ while getopts ":hctdkig:" option; do
          shift 1
          TEST_RUN=true
          GTEST_FLAGS="$@"
+         ADDITIONAL_FLAGS=1
+         shift "$((OPTIND - 2))";;
+      f) echo "[ BUILD ] CMake options ON"
+         shift 1
+         TEST_RUN=true
+         CMAKE_FLAGS="$@"
+         ADDITIONAL_FLAGS=2
          shift "$((OPTIND - 2))";;
       i) echo "[ INSTALL ] Prerequisites"
          INSTALLP=true;;
@@ -127,9 +166,9 @@ fi
 
 if [ $TEST_RUN = true ]; then
     if [ $NO_REBUILD = true ]; then
-        testrun_no_rebuild $TEST_GDB $GTEST_FLAGS
+        testrun_no_rebuild $TEST_GDB $ADDITIONAL_FLAGS $GTEST_FLAGS $CMAKE_FLAGS
     else 
-        testrun $TEST_GDB $GTEST_FLAGS
+        testrun $TEST_GDB $ADDITIONAL_FLAGS $GTEST_FLAGS $CMAKE_FLAGS
     fi
 else
     build

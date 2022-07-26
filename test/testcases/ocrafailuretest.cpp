@@ -70,7 +70,7 @@ TEST_F(OcraFailureTestFixture, ShouldFailOnConcatenatePasswordIfIsMissing)
     ocraParams.question = "hello";
 
     ASSERT_THROW_MESSAGE(Get(std::move(ocraSuite), std::move(ocraParams)),
-                         "OCRA operator() failed, password hashing failed");
+                         "OCRA operator() failed, missing 'password' value");
     ASSERT_RETURN_STATUS(Get(std::move(ocraSuite), std::move(ocraParams)), 0x16);
 }
 
@@ -83,7 +83,7 @@ TEST_F(OcraFailureTestFixture, ShouldFailOnConcatenatePasswordIfUserDefinedShaRe
     ocraParams.password = "PASSWORD";
 
     ASSERT_THROW_MESSAGE(Get(std::move(ocraSuite), std::move(ocraParams)),
-                         "OCRA operator() failed, invalid hashed password length, password hashing may failed, check user defined ShaHashing function");
+                         "OCRA operator() failed, password hashing failed, check user defined ShaHashing function");
     ASSERT_RETURN_STATUS(Get(std::move(ocraSuite), std::move(ocraParams)), 0x17);
 }
 

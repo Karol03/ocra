@@ -95,6 +95,7 @@ public:
     explicit Ocra(std::string suite);
 
     inline const OcraSuite& Suite() const { return m_suite; }
+    Ocra& From(std::string suite);
     #ifdef OCRA_NO_THROW
     int Status() const { return m_status; }
     #endif

@@ -8,17 +8,17 @@ help() {
    echo "Run script for your projects"
    echo "To change project output file name just change the name of this file"
    echo
-   echo "Syntax: run.sh [-h|c|t|td]"
+   echo "Syntax: run.sh [-h|i|c|t|t|d|k|[g|f <options>...]]"
    echo "Options:"
    echo "h              Print this help"
    echo "c              Clean project before build"
    echo "t              Run tests for the project"
-   echo "d              Run tests with GDB"
-   echo "k              Run tests without the project rebuild"
+   echo "d              Run tests under GDB"
+   echo "k              Run tests without the project and tests rebuild"
    echo "g <options>... Run tests with the gtest options, specify the options after the flag"
    echo "f <options>... Run tests with additional CMAKE flags, specify the options after the flag"
    echo "               example, './run.sh -g --gtest_filter=ExampleTest.*'"
-   echo "i              Install prerequisites (GTest, Crypto++, ...)"
+   echo "i              Install all prerequisites (GTest, Crypto++, ...)"
    echo
 }
 

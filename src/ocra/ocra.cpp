@@ -114,6 +114,13 @@ Ocra::Ocra(std::string suite)
     Validate();
 }
 
+Ocra& Ocra::From(std::string suite)
+{
+    m_suiteStr = std::move(suite);
+    Validate();
+    return *this;
+}
+
 std::string Ocra::operator()(const OcraParameters& parameters)
 {
     if (parameters.key.empty())
@@ -282,7 +289,7 @@ std::size_t Ocra::ConcatenatePassword(uint8_t* message,
         return NO_PASSWORD_VALUE;
 
     if (!parameters.password)
-        THROW_RETURN(0x16, "OCRA operator() failed, password hashing failed");
+        THROW_RETURN(0x16, "OCRA operator() failed, missing 'password' value");
 
     const auto password = *parameters.password;
     auto passwordVec = std::vector<uint8_t>(password.size());
@@ -290,7 +297,7 @@ std::size_t Ocra::ConcatenatePassword(uint8_t* message,
 
     auto passwordHash = user_implemented::ShaHashing(passwordVec, m_suite.passwordSha);
     if (passwordHash.size() != PASSWORD_LENGTH)
-        THROW_RETURN(0x17, "OCRA operator() failed, invalid hashed password length, password hashing may failed, check user defined ShaHashing function");
+        THROW_RETURN(0x17, "OCRA operator() failed, password hashing failed, check user defined ShaHashing function");
 
     memcpy(message, passwordHash.data(), PASSWORD_LENGTH);
     return PASSWORD_LENGTH;
@@ -352,6 +359,12 @@ void Ocra::StringHexToUint8(uint8_t* output,
                             std::size_t length,
                             bool isAlignRight)
 {
+    if (length > 2 && input[1] == 'x')
+    {
+        length -= 2;
+        input += 2;
+    }
+
     auto relativePos = std::size_t{(length % 2) && isAlignRight};
 
     for (auto i = 0u; i < length; ++i)

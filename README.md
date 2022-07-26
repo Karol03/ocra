@@ -2,7 +2,7 @@
 <h2>1. Description</h2>
 <h3>About the project</h3>
 This project is C++17 implementation of OCRA challenge-response algorithm. </br>
-The project realizes <a href="https://datatracker.ietf.org/doc/html/rfc6287#section-5.1">RFC6287</a></br>
+The project realizes <a href="https://datatracker.ietf.org/doc/html/rfc6287">RFC6287</a></br>
 <h3>Building</h3>
 The implementation contains only two files 'ocra.hpp' and 'ocra.cpp'. To build the project or the tests use 'ocra.sh' script (tested on Ubuntu), use the './ocra.sh -h' for more details. </br>
 <h3>Using</h3>

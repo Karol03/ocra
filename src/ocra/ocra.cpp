@@ -2,6 +2,7 @@
 
 #include <sstream>
 #include <stdexcept>
+#include <iostream>
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -136,16 +137,16 @@ std::string Ocra::operator()(const OcraParameters& parameters)
 
     auto pos = ConcatenateOcraSuite(message.data());
     #ifdef OCRA_NO_THROW
-    pos = ConcatenateCounter(message.data() + pos, parameters);     EXIT_WITH_STATUS_RETURN();
-    pos = ConcatenateQuestion(message.data() + pos, parameters);    EXIT_WITH_STATUS_RETURN();
-    pos = ConcatenatePassword(message.data() + pos, parameters);    EXIT_WITH_STATUS_RETURN();
-    pos = ConcatenateSessionInfo(message.data() + pos, parameters); EXIT_WITH_STATUS_RETURN();
+    pos += ConcatenateCounter(message.data() + pos, parameters);     EXIT_WITH_STATUS_RETURN();
+    pos += ConcatenateQuestion(message.data() + pos, parameters);    EXIT_WITH_STATUS_RETURN();
+    pos += ConcatenatePassword(message.data() + pos, parameters);    EXIT_WITH_STATUS_RETURN();
+    pos += ConcatenateSessionInfo(message.data() + pos, parameters); EXIT_WITH_STATUS_RETURN();
     ConcatenateTimestamp(message.data() + pos, parameters);         EXIT_WITH_STATUS_RETURN();
     #else
-    pos = ConcatenateCounter(message.data() + pos, parameters);
-    pos = ConcatenateQuestion(message.data() + pos, parameters);
-    pos = ConcatenatePassword(message.data() + pos, parameters);
-    pos = ConcatenateSessionInfo(message.data() + pos, parameters);
+    pos += ConcatenateCounter(message.data() + pos, parameters);
+    pos += ConcatenateQuestion(message.data() + pos, parameters);
+    pos += ConcatenatePassword(message.data() + pos, parameters);
+    pos += ConcatenateSessionInfo(message.data() + pos, parameters);
     ConcatenateTimestamp(message.data() + pos, parameters);
     #endif
 
@@ -154,6 +155,29 @@ std::string Ocra::operator()(const OcraParameters& parameters)
         (m_suite.hmac == OcraHmac::HOTP_SHA256 && hash.size() != 32u) ||
         (m_suite.hmac == OcraHmac::HOTP_SHA512 && hash.size() != 64u))
         THROW_RETURN(0x11, "OCRA operator() failed, invalid HMAC result size, please check user defined HMACAlgorithm function");
+
+    // const char TO_CHAR[] = {'0', '1', '2', '3', '4', '5', '6', '7',
+    //                         '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
+
+    // std::cerr << "Message value: ";
+    // for (auto i = 0u; i < message.size(); ++i)
+    //     std::cerr << message[i];
+    // std::cerr << '\n';
+
+    // std::cerr << "Message hash: 0x";
+    // for (auto i = 0u; i < message.size(); ++i)
+    //     std::cerr << TO_CHAR[message[i] >> 4] << TO_CHAR[message[i] & 0xF];
+    // std::cerr << '\n';
+
+    // std::cerr << "Value: ";
+    // for (auto i = 0u; i < hash.size(); ++i)
+    //     std::cerr << hash[i];
+    // std::cerr << '\n';
+
+    // std::cerr << "Hash: 0x";
+    // for (auto i = 0u; i < hash.size(); ++i)
+    //     std::cerr << TO_CHAR[hash[i] >> 4] << TO_CHAR[hash[i] & 0xF];
+    // std::cerr << '\n';
 
     const auto offset = hash[hash.size() - 1] & 0xf;
     const auto binary =
@@ -183,7 +207,7 @@ std::size_t Ocra::ConcatenateOcraSuite(uint8_t* message)
 {
     constexpr auto EMPTY_BYTE = 1u;
     memcpy(message, (uint8_t*)m_suiteStr.c_str(), m_suiteStr.length());
-    return m_suiteStr.length() + EMPTY_BYTE;
+    return m_suiteStr.size() + EMPTY_BYTE;
 }
 
 std::size_t Ocra::ConcatenateCounter(uint8_t* message,
@@ -219,8 +243,6 @@ std::size_t Ocra::ConcatenateQuestion(uint8_t* message,
 
     if (!parameters.question)
         THROW_RETURN(0x13, "OCRA operator() failed, missing parameter 'question'");
-    else if (parameters.question->length() > m_suite.challenge.length)
-        THROW_RETURN(0x14, "OCRA operator() failed, invalid 'question' is too long");
 
     if (m_suite.challenge.format == 'A')
     {
@@ -241,8 +263,8 @@ std::size_t Ocra::ConcatenateQuestion(uint8_t* message,
         auto ui256 = uint256_t{*parameters.question};
         auto sstream = std::stringstream{};
         sstream << std::hex << ui256;
-        auto question = sstream.str();
-        StringHexToUint8(message, question.c_str(), question.length());
+        auto questionHex = sstream.str();
+        StringHexToUint8(message, questionHex.c_str(), questionHex.length());
     }
 
     return QUESTION_LENGTH;
@@ -262,33 +284,11 @@ std::size_t Ocra::ConcatenatePassword(uint8_t* message,
     if (!parameters.password)
         THROW_RETURN(0x16, "OCRA operator() failed, password hashing failed");
 
-    const auto concatenatePassword = [](auto&& password)
-    {
-        using T = std::decay_t<decltype(password)>;
-        if constexpr (std::is_same_v<T, uint64_t>)
-        {
-            auto passwordVec = std::vector<uint8_t>{};
-            auto pin = password;
-            for (; pin; pin /= 10)
-                passwordVec.push_back(pin % 10);
-            return std::vector(passwordVec.rbegin(), passwordVec.rend());
-        }
-        else if constexpr (std::is_same_v<T, std::string>)
-        {
-            auto passwordVec = std::vector<uint8_t>(password.size());
-            memcpy((void*)passwordVec.data(), (void*)password.data(), password.size());
-            return passwordVec;
-        }
-        else
-        {
-            static_assert(std::is_same_v<T, uint64_t> ||
-                          std::is_same_v<T, std::string>, "Unsupported OCRA 'password' type, supported types are std::string/uint64_t");
-        }
-    };
+    const auto password = *parameters.password;
+    auto passwordVec = std::vector<uint8_t>(password.size());
+    memcpy((void*)passwordVec.data(), (void*)password.data(), password.size());
 
-    const auto password = std::visit(concatenatePassword, *parameters.password);
-    auto passwordHash = user_implemented::ShaHashing(password, m_suite.passwordSha);
-
+    auto passwordHash = user_implemented::ShaHashing(passwordVec, m_suite.passwordSha);
     if (passwordHash.size() != PASSWORD_LENGTH)
         THROW_RETURN(0x17, "OCRA operator() failed, invalid hashed password length, password hashing may failed, check user defined ShaHashing function");
 
@@ -356,23 +356,20 @@ void Ocra::StringHexToUint8(uint8_t* output,
 
     for (auto i = 0u; i < length; ++i)
     {
-        const auto& c = input[i];
-
-        if (relativePos % 2 == 1)
-            output[relativePos] <<= 4;
+        const auto& c = toupper(input[i]);
 
         if ('0' <= c  && c <= '9')
-            output[relativePos++] |= (c - '0');
-        else if ('a' <= c  && c <= 'f')
-            output[relativePos++] |= (10 + c - 'a');
+            output[relativePos] |= (c - '0');
         else if ('A' <= c  && c <= 'F')
-            output[relativePos++] |= (10 + c - 'A');
+            output[relativePos] |= (10 + c - 'A');
         else
             THROW(0x1A, "OCRA operator() failed, question is Hexadecimal, and must contains values [0-9][a-f][A-F]");
-    }
 
-    if (relativePos % 2 == 1)
-        output[relativePos] <<= 4;
+        if (i % 2)
+            ++relativePos;
+        else
+            output[relativePos] <<= 4;
+    }
 }
 
 void Ocra::Validate()
@@ -392,7 +389,7 @@ void Ocra::Validate()
     #ifdef OCRA_NO_THROW
     ValidateVersion(std::move(version));            EXIT_WITH_STATUS();
     ValidateCryptoFunction(std::move(function));    EXIT_WITH_STATUS();
-    ValidateDataInput(std::move(dataInput));
+    ValidateDataInput(std::move(dataInput));        EXIT_WITH_STATUS();
     #else
     ValidateVersion(std::move(version));
     ValidateCryptoFunction(std::move(function));

@@ -49,19 +49,6 @@ TEST_F(OcraFailureTestFixture, ShouldFailOnConcatenateQuestionIfMissing)
     ASSERT_RETURN_STATUS(Get(std::move(ocraSuite), std::move(ocraParams)), 0x13);
 }
 
-TEST_F(OcraFailureTestFixture, ShouldFailOnConcatenateQuestionIfIsTooLong)
-{
-    auto ocraSuite = "OCRA-1:HOTP-SHA256-8:C-QA08";
-    auto ocraParams = ocra::OcraParameters{};
-    ocraParams.key = std::vector<uint8_t>{0x1, 0xff, 0x4};
-    ocraParams.counter = 0x0;
-    ocraParams.question = "helloworld1234";
-
-    ASSERT_THROW_MESSAGE(Get(std::move(ocraSuite), std::move(ocraParams)),
-                         "OCRA operator() failed, invalid 'question' is too long");
-    ASSERT_RETURN_STATUS(Get(std::move(ocraSuite), std::move(ocraParams)), 0x14);
-}
-
 TEST_F(OcraFailureTestFixture, ShouldFailOnConcatenateQuestionIfInvalidCharInNumeric)
 {
     auto ocraSuite = "OCRA-1:HOTP-SHA256-8:QN08";

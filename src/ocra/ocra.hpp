@@ -5,7 +5,6 @@
 #include <optional>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
 
 
@@ -83,7 +82,7 @@ public:
     std::vector<uint8_t> key;
     std::optional<uint64_t> counter;
     std::optional<uint64_t> timestamp;
-    std::optional<std::variant<std::string, uint64_t>> password;
+    std::optional<std::string> password;
     std::optional<std::string> question;
     std::optional<std::string> sessionInfo;
 };

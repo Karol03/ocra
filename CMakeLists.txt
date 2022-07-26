@@ -17,6 +17,7 @@ if (${TEST_ONLY})
     endif (${OCRA_NO_THROW})
 
     include_directories(${CMAKE_SOURCE_DIR}/src)
+    include_directories(${CMAKE_SOURCE_DIR}/cryptopp)
     add_subdirectory(${CMAKE_SOURCE_DIR}/src)
     add_subdirectory(${CMAKE_SOURCE_DIR}/test)
 
@@ -32,7 +33,8 @@ if (${TEST_ONLY})
         PRIVATE
             gtest
             gmock
-            gtest_main)
+            gtest_main
+            crypto++)
 
 else ()
 

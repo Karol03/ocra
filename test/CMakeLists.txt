@@ -1,4 +1,5 @@
 include_directories(asserts)
+include_directories(mock)
 
 add_subdirectory(mock)
 add_subdirectory(testcases)

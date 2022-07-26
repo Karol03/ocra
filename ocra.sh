@@ -18,12 +18,18 @@ help() {
    echo "g <options>... Run tests with the gtest options, specify the options after the flag"
    echo "f <options>... Run tests with additional CMAKE flags, specify the options after the flag"
    echo "               example, './run.sh -g --gtest_filter=ExampleTest.*'"
-   echo "i              Install prerequisites (GTest, GMock)"
+   echo "i              Install prerequisites (GTest, Crypto++, ...)"
    echo
 }
 
 install_prerequisites() {
-    sudo apt-get install libgtest-dev libgmock-dev
+    echo "[ Install ] GTest and GMock libraries" 
+    sudo apt-get install libgtest-dev libgmock-dev &&
+    echo "[ Install ] Git" &&
+    sudo apt-get install git &&
+    echo "[ Install ] Crypto++ library" &&
+    sudo apt-get install libcrypto++-dev libcrypto++-doc libcrypto++-utils &&
+    echo "[ Install ] Completed"
 }
 
 clean() {

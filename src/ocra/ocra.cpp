@@ -2,7 +2,6 @@
 
 #include <sstream>
 #include <stdexcept>
-#include <iostream>
 
 #include <boost/multiprecision/cpp_int.hpp>
 
@@ -162,29 +161,6 @@ std::string Ocra::operator()(const OcraParameters& parameters)
         (m_suite.hmac == OcraHmac::HOTP_SHA256 && hash.size() != 32u) ||
         (m_suite.hmac == OcraHmac::HOTP_SHA512 && hash.size() != 64u))
         THROW_RETURN(0x11, "OCRA operator() failed, invalid HMAC result size, please check user defined HMACAlgorithm function");
-
-    // const char TO_CHAR[] = {'0', '1', '2', '3', '4', '5', '6', '7',
-    //                         '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-
-    // std::cerr << "Message value: ";
-    // for (auto i = 0u; i < message.size(); ++i)
-    //     std::cerr << message[i];
-    // std::cerr << '\n';
-
-    // std::cerr << "Message hash: 0x";
-    // for (auto i = 0u; i < message.size(); ++i)
-    //     std::cerr << TO_CHAR[message[i] >> 4] << TO_CHAR[message[i] & 0xF];
-    // std::cerr << '\n';
-
-    // std::cerr << "Value: ";
-    // for (auto i = 0u; i < hash.size(); ++i)
-    //     std::cerr << hash[i];
-    // std::cerr << '\n';
-
-    // std::cerr << "Hash: 0x";
-    // for (auto i = 0u; i < hash.size(); ++i)
-    //     std::cerr << TO_CHAR[hash[i] >> 4] << TO_CHAR[hash[i] & 0xF];
-    // std::cerr << '\n';
 
     const auto offset = hash[hash.size() - 1] & 0xf;
     const auto binary =

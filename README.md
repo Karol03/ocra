@@ -56,7 +56,7 @@ Below are presented codes, the equivalent exception and the meaning of them:
     <tr><td>0x00</td><td>-</td><td>OK, no exception</td></tr>
     <tr>
         <td>0x01</td>
-        <td>Invalid OCRA suite, pattern is: <Version>:<CryptoFunction>:<DataInput>, see RFC6287
+        <td>Invalid OCRA suite, pattern is: &lt;Version>:&lt;CryptoFunction>:&lt;DataInput>, see RFC6287
         </td>
         <td>
             Ocra suite has invalid format, make sure that the format is as presented in excepion and RFC6287 document.

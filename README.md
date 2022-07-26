@@ -1,13 +1,14 @@
 <h1>OCRA: Challenge-response Algorithm</h1>
 <h2>1. Description</h2>
-<h3>About the project<h3>
+<h3>About the project</h3>
 This project is C++17 implementation of OCRA challenge-response algorithm. </br>
 The project realizes <a href="https://datatracker.ietf.org/doc/html/rfc6287#section-5.1">RFC6287</a> with all the test cases (and additional). </br>
 <h3>Building</h3>
 The implementation contains only two files 'ocra.hpp' and 'ocra.cpp'. To build the project or the tests use 'ocra.sh' script (tested on Ubuntu), use the './ocra.sh -h' for more details. </br>
 <h3>Using</h3>
 To use OCRA algorithm create OCRA object with proper suite (see RFC6287 for more), and use function call operator with provided arguments. An example:
-cpp'''
+
+```cpp
 #include "ocra/ocra.hpp"
 // ...
 {
@@ -19,7 +20,7 @@ cpp'''
     auto ocraResultCode = ocra(params);
     // ...
 }
-'''
+```
 
 <h2>2. Testcases</h2>
 The tests scenarios consider all testcases from the 'RFC6287' and some additional tests for failures. Run the tests using 'ocra.sh' script and the falg '-t'. </br>
@@ -29,7 +30,8 @@ Due to the large number of tests, successful cases are truncated, and the test r
 Implementation requires from user to define own SHA and HMAC algoritm functions (see end of the 'ocra.hpp' file). This helped reduce external dependencies in the project and allows the user to take advantage of the hardware accelerated SHA/HMAC functions. </br>
 Notice: Don't forget to implement all 'OcraSha' and 'OcraHmac' types. If there is no implementation, the code 0x17 or 0x11 will be returned (see 4. Validations and failures). <br/> </br>
 To provide your own implementation use function signatures: </br>
-cpp'''
+
+```cpp
 namespace ocra::user_implemented
 {
 std::vector<uint8_t> ShaHashing(const std::vector<uint8_t>& data,
@@ -38,7 +40,7 @@ std::vector<uint8_t> HMACAlgorithm(const std::vector<uint8_t>& data,
                                    const std::vector<uint8_t>& key,
                                    OcraHmac hmacType);
 }  // namespace ocra::user_implemented
-'''
+```
 </br>
 
 <h2>4. Validations and failures</h2>

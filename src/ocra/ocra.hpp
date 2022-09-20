@@ -3,7 +3,7 @@
 #include <array>
 #include <inttypes.h>
 #include <optional>
-#include <string>
+#include <cstring>
 #include <utility>
 #include <vector>
 

@@ -206,5 +206,4 @@ Below are presented codes, the equivalent exception and the meaning of them:
 
 <h2>Requirements</h2>
 C++17 </br>
-Boost </br>
 Crypto++ (for test only)

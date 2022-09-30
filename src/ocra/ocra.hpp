@@ -1,9 +1,10 @@
 #pragma once
 
 #include <array>
+#include <cstring>
 #include <inttypes.h>
 #include <optional>
-#include <cstring>
+#include <string>
 #include <utility>
 #include <vector>
 

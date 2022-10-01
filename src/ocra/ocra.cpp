@@ -29,7 +29,7 @@ std::string uint256DecToHex(const std::string& decimal)
     result.resize(65);
 
     char* resultPtr = result.data();
-    char* decimalPtr = decimal.data();
+    char const* decimalPtr = decimal.data();
 
     char x[64] = {};
     int l = 0;

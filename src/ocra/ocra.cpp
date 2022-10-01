@@ -27,7 +27,7 @@
 namespace ocra
 {
 
-std::string uint256DecToHex(std::string decimal)
+std::string uint256DecToHex(const std::string& decimal)
 {
     std::string result;
     result.resize(65);

@@ -26,99 +26,34 @@
 
 namespace ocra
 {
-namespace details
-{
-
-class Uint256DecToHex
-{
-    using uint256 = uint64_t[UINT256_CHUNKS];
-    using uint256_tmp = uint64_t[UINT256_TMP_CHUNKS];
-
-public:
-    explicit Uint256DecToHex(std::string decimal)
-    {
-        toHex(std::move(decimal));
-    }
-
-    operator const std::string&() const 
-    {
-        return m_data;
-    }
-
-private:
-    inline std::string toString(uint256 data) const
-    {
-        const char HEXTAB[] = {'0', '1', '2', '3', '4', '5', '6', '7',
-                               '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'};
-        auto result = std::string{};
-        auto i = UINT256_CHUNKS - 1;
-        while (i >= 0 && data[i] == 0) --i;
-
-        for (; i >= 0; --i)
-        {
-            for (auto j = 60; j >= 0; j -= 4)
-                result += HEXTAB[(data[i] >> j) & 0xF];
-        }
-
-        const auto pos = result.find_first_not_of('0');
-        return pos == std::string::npos ? std::string{"0"} : result.substr(pos);
-    }
-
-    inline void shiftSum(int i, uint256_tmp dataTmp) const
-    {
-        for (; i < UINT256_TMP_CHUNKS - 1; ++i)
-        {
-            dataTmp[i + 1] += ((dataTmp[i] >> 32) & 0xFFFFFFFF);
-            dataTmp[i] &= 0xFFFFFFFFull;
-        }
-    }
-
-    inline void cast(std::string decimal, uint256 data) const
-    {
-        uint256_tmp dataTmp = {};
-
-        for (const auto& c : decimal)
-        {
-            if (c < '0' || '9' < c)
-            {
-                memset(data, 0, sizeof(uint64_t) * 5);
-                return;
-            }
-            
-            for (auto i = UINT256_TMP_CHUNKS - 1; i >= 0; --i)
-            {
-                dataTmp[i] *= 10;
-                shiftSum(i, dataTmp);
-            }
-
-            dataTmp[0] += (c - '0');
-            shiftSum(0, dataTmp);
-        }
-
-        for (auto i = UINT256_CHUNKS - 1; i >= 0; --i)
-        {
-            data[i] = dataTmp[i * 2 + 1] & 0xFFFFFFFF;
-            data[i] <<= 32;
-            data[i] |= (dataTmp[i * 2] & 0xFFFFFFFF);
-        }
-    }
-
-    inline void toHex(std::string decimal)
-    {
-        uint256 data = {};
-        cast(std::move(decimal), data);
-        m_data = toString(data);
-    }
-
-private:
-    std::string m_data;
-};
-
-}  // namespace details
 
 std::string uint256DecToHex(std::string decimal)
 {
-    return details::Uint256DecToHex(std::move(decimal));
+    std::string result;
+    result.resize(65);
+
+    char* resultPtr = result.data();
+    char* decimalPtr = decimal.data();
+
+    char x[64] = {};
+    int l = 0;
+    while (*decimalPtr)
+    {
+        div_t d = { .quot = *decimalPtr++ - '0' };
+        for (int i = 0; i < l; ++i)
+        {
+            d = div(x[i]*10 + d.quot, 16);
+            x[i] = d.rem;
+        }
+
+        if (d.quot)
+            x[l++] = d.quot;
+    }
+    
+    while (l--)
+        *resultPtr++ = x[l] + (10 <= x[l] ? 'A' - 10 : '0');
+    *resultPtr = 0;
+    return result;
 }
 
 

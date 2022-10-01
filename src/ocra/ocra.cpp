@@ -20,10 +20,6 @@
 #endif
 
 
-#define UINT256_CHUNKS 4
-#define UINT256_TMP_CHUNKS (UINT256_CHUNKS * 2)
-
-
 namespace ocra
 {
 

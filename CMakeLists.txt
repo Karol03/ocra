@@ -39,8 +39,6 @@ else ()
 
     project(${DEFINED_PROJECT_NAME})
 
-    find_package(Boost REQUIRED)
-
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++17 -Wall -pedantic -Werror -O3")
